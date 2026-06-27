@@ -717,6 +717,9 @@ async function openInEditor(match) {
     if (state.rgReady) {
       olog('debug', 'editor.open', 'path=' + match.absPath, 'line=' + match.line);
     }
+    if (state.rgReady) {
+      olog('info', 'editor.open.attempt', 'absPath=' + match.absPath, 'relative=' + (match.path || '<none>'), 'scope=' + (state.scope || '<none>'));
+    }
     await muxy.tabs.open({
       kind: 'extensionWebView',
       extension: {
@@ -731,8 +734,16 @@ async function openInEditor(match) {
         },
       },
     });
-  } catch {
-    toast("Install the 'files' extension to open results in an editor", 'warn');
+  } catch (err) {
+    // Surface the real error so we can tell apart "files extension not
+    // installed" from "file not found at that path". The old catch-all
+    // hid the underlying message and made both look like a missing
+    // extension.
+    const detail = (err && (err.message || String(err))) || 'unknown error';
+    if (state.rgReady) {
+      olog('error', 'editor.open.failed', 'path=' + match.absPath, 'error=' + detail);
+    }
+    toast(`Cannot open file: ${detail}`, 'error');
   }
 }
 
@@ -764,6 +775,17 @@ function onSearchInput() {
   state.currentQuery = query;
   saveQueryForScope(query, state.scope);
   scheduleSearch();
+}
+
+function onSearchKeydown(e) {
+  // Enter on the search input fires the search immediately, bypassing
+  // the 150ms debounce. Escape falls through to the document handler
+  // so the empty-input / collapse-preview behavior still works.
+  if (e.key !== 'Enter') return;
+  if (state.switchingScope) return;
+  e.preventDefault();
+  clearTimeout(debounceTimer);
+  executeSearch();
 }
 
 function onCaseToggle() {
@@ -1115,6 +1137,7 @@ async function init() {
 
   // 5. Wire DOM events
   els.search.addEventListener('input', onSearchInput);
+  els.search.addEventListener('keydown', onSearchKeydown);
   els.caseToggle.addEventListener('click', onCaseToggle);
   els.literalToggle.addEventListener('click', onLiteralToggle);
   els.settingsToggle.addEventListener('click', (e) => {
