@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { MAX_COLUMNS } from '../src/panel/rg-args.js';
 import {
   relativizePath,
+  absolutizePath,
   formatTime,
   formatCount,
   formatFileCount,
@@ -200,6 +201,52 @@ test('relativizePath: scope with trailing slash is NOT stripped', () => {
   // a trailing slash, we'd get `scope + '//'` and nothing would match.
   // This pins the documented contract: callers pass a clean scope.
   assert.equal(relativizePath('/repo/src/foo.ts', '/repo/'), '/repo/src/foo.ts');
+});
+
+// === absolutizePath ========================================================
+// Inverse of relativizePath. rg runs with cwd=state.scope, so match.path
+// in the JSON output is relative. Before handing the path to Muxy's
+// `files` extension (which needs absolute paths), we re-join it.
+
+test('absolutizePath joins scope + relative path', () => {
+  assert.equal(absolutizePath('src/auth/login.ts', '/repo'), '/repo/src/auth/login.ts');
+});
+
+test('absolutizePath leaves already-absolute paths unchanged', () => {
+  // Defensive: if rg ever returns an absolute path (symlinks, weird
+  // config), we don't want to double-prefix it.
+  assert.equal(absolutizePath('/already/abs.ts', '/repo'), '/already/abs.ts');
+});
+
+test('absolutizePath returns path unchanged when scope is null', () => {
+  assert.equal(absolutizePath('src/file.ts', null), 'src/file.ts');
+});
+
+test('absolutizePath returns path unchanged when scope is undefined', () => {
+  assert.equal(absolutizePath('src/file.ts', undefined), 'src/file.ts');
+});
+
+test('absolutizePath returns path unchanged when scope is empty string', () => {
+  // Empty scope == falsy == "caller's problem, we can't help".
+  assert.equal(absolutizePath('src/file.ts', ''), 'src/file.ts');
+});
+
+test('absolutizePath: empty filePath returns empty', () => {
+  assert.equal(absolutizePath('', '/repo'), '');
+});
+
+test('absolutizePath: null filePath returns null', () => {
+  assert.equal(absolutizePath(null, '/repo'), null);
+});
+
+test('absolutizePath: undefined filePath returns undefined', () => {
+  assert.equal(absolutizePath(undefined, '/repo'), undefined);
+});
+
+test('absolutizePath: non-string filePath is returned as-is', () => {
+  // The function guards against bad input rather than coercing —
+  // mirrors the defensive shape of isTruncated / formatTime.
+  assert.equal(absolutizePath(123, '/repo'), 123);
 });
 
 // === Summary ===============================================================

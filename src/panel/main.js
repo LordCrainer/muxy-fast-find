@@ -10,7 +10,7 @@ import { fetchContext } from './inline-preview.js';
 import { detectRg } from './rg-install.js';
 import { resolveRgPath } from './rg-resolve.js';
 import { MAX_COLUMNS } from './rg-args.js';
-import { relativizePath, formatTime, formatCount, formatFileCount, isTruncated } from './utils.js';
+import { relativizePath, absolutizePath, formatTime, formatCount, formatFileCount, isTruncated } from './utils.js';
 import { olog } from './log.js';
 
 // === Constants =============================================================
@@ -702,7 +702,7 @@ async function openInEditor(match) {
         tabType: 'code-editor',
         singleton: true,
         data: {
-          filePath: match.path,
+          filePath: absolutizePath(match.path, state.scope),
           line: match.line,
           column: match.column,
           replaceable: true,

@@ -27,6 +27,32 @@ export function relativizePath(filePath, scope) {
 }
 
 /**
+ * Build an absolute path from a (possibly relative) `filePath` and a `scope`.
+ * Pure function — no I/O, no path normalization beyond the join.
+ *
+ * Rules (in order):
+ *   - Falsy `filePath` → return as-is (preserves null/empty contract)
+ *   - Already absolute (starts with '/' on POSIX) → return as-is
+ *   - No `scope` → return as-is (caller's problem; we can't help)
+ *   - Otherwise → return `${scope}/${filePath}` (forward-slash join;
+ *     rg output and Muxy paths are POSIX-style even on Windows)
+ *
+ * Inverse of `relativizePath`: that one strips the scope prefix, this one
+ * adds it back. They are paired for the "rg with cwd=scope" pattern.
+ *
+ * @param {string} filePath
+ * @param {string|null|undefined} scope
+ * @returns {string}
+ */
+export function absolutizePath(filePath, scope) {
+  if (!filePath) return filePath;
+  if (typeof filePath !== 'string') return filePath;
+  if (filePath.startsWith('/')) return filePath;
+  if (!scope) return filePath;
+  return `${scope}/${filePath}`;
+}
+
+/**
  * Format a millisecond count as a compact human string for the status
  * chip. Sub-second values render as "50ms" (rounded), larger ones as
  * "1.5s" with one decimal — anything finer is noise on a search status
