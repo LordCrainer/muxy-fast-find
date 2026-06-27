@@ -416,7 +416,7 @@ html, body {
   align-items: baseline;
   gap: 4px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-dim);
   overflow: hidden;
   white-space: nowrap;
@@ -437,8 +437,8 @@ html, body {
 
 .result-content {
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
@@ -465,9 +465,10 @@ html, body {
   border-radius: 4px;
   padding: 6px 0;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.5;
-  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  overflow-y: hidden;
   animation: preview-in 0.12s ease-out;
 }
 
