@@ -1057,12 +1057,6 @@ async function onScopeChanged() {
       'restored=' + (restored ? 'yes' : 'no'));
   }
 
-  if (state.scope) {
-    toast(`Switched to ${state.scope}`, 'info');
-  } else {
-    toast('No project detected', 'warn');
-  }
-
   if (!state.scope) {
     renderStatus('No worktree detected. Open inside a git repo.', 'warn');
     renderEmpty('No worktree detected');

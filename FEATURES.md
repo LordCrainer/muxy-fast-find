@@ -172,7 +172,7 @@ The `muxy` block in `package.json` is the extension's contract with the host. Fu
 
 | Event | Handler | Effect |
 |---|---|---|
-| `project.switched` | `onScopeChanged` | Bump `querySeq`, clear results, re-resolve scope, toast |
+| `project.switched` | `onScopeChanged` | Bump `querySeq`, clear results, re-resolve scope |
 | `worktree.switched` | `onScopeChanged` | Same as above (both events share a handler) |
 
 ### Commands
