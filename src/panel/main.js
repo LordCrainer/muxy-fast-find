@@ -10,7 +10,8 @@ import { fetchContext } from './inline-preview.js';
 import { detectRg } from './rg-install.js';
 import { resolveRgPath } from './rg-resolve.js';
 import { MAX_COLUMNS } from './rg-args.js';
-import { relativizePath, absolutizePath, formatTime, formatCount, formatFileCount, isTruncated } from './utils.js';
+import { relativizePath, absolutizePath, attachAbsolutePaths, formatTime, formatCount, formatFileCount, isTruncated } from './utils.js';
+import { loadQueryForScope, saveQueryForScope } from './query-store.js';
 import { olog } from './log.js';
 
 // === Constants =============================================================
@@ -52,6 +53,12 @@ const state = {
   expandedIndex: -1,
   previewLoading: -1,
   previewCache: new Map(),
+  switchingScope: false, // blocks input saves during scope transitions;
+                         // flipped on at the start of onScopeChanged and
+                         // cleared after the new scope's saved query is
+                         // loaded, so a stray keystroke in the transition
+                         // window can't store the OLD project's query
+                         // under the NEW project's key.
 };
 
 let debounceTimer = null;
@@ -694,7 +701,22 @@ async function openInEditor(match) {
     toast("Cannot open editor — Muxy tabs API unavailable", 'warn');
     return;
   }
+  // Hard requirement: every match from a successful search has absPath.
+  // A missing absPath means the search augmentation didn't run (or the
+  // match came from a stale state). Failing loud here prevents the
+  // "wrong file" or "no such file" error that would otherwise surface
+  // from the files extension.
+  if (!match || typeof match.absPath !== 'string') {
+    if (state.rgReady) {
+      olog('warn', 'open.noAbsPath', 'path=' + (match && match.path));
+    }
+    toast('Cannot open file — path data is missing', 'warn');
+    return;
+  }
   try {
+    if (state.rgReady) {
+      olog('debug', 'editor.open', 'path=' + match.absPath, 'line=' + match.line);
+    }
     await muxy.tabs.open({
       kind: 'extensionWebView',
       extension: {
@@ -702,7 +724,7 @@ async function openInEditor(match) {
         tabType: 'code-editor',
         singleton: true,
         data: {
-          filePath: absolutizePath(match.path, state.scope),
+          filePath: match.absPath,
           line: match.line,
           column: match.column,
           replaceable: true,
@@ -732,6 +754,15 @@ function togglePopover() {
 // === Event wiring ==========================================================
 
 function onSearchInput() {
+  // During a scope transition, els.search.value is being mutated by
+  // onScopeChanged (saving the old query, loading the new one). Saving
+  // during this window would store the OLD project's query under the
+  // NEW project's key. Block all input handlers until the transition
+  // is complete.
+  if (state.switchingScope) return;
+  const query = els.search.value;
+  state.currentQuery = query;
+  saveQueryForScope(query, state.scope);
   scheduleSearch();
 }
 
@@ -875,7 +906,16 @@ async function executeSearch() {
   }
 
   state.lastResult = result;
-  state.results = Array.isArray(result.matches) ? result.matches : [];
+  // Augment matches with absPath (relative path joined with the scope
+  // rg actually ran against). We use `result.stats.scope` because
+  // `runSearch` may have resolved a different scope than the one we
+  // passed in (worktree fallback); downstream code (`openInEditor`,
+  // preview) trusts `absPath` as the canonical "open this file"
+  // path, so it must be computed from the same scope the matches
+  // came from. Error paths and the initial empty state still leave
+  // `state.results = []` untouched — only the success path augments.
+  const searchScope = result.stats && result.stats.scope ? result.stats.scope : state.scope;
+  state.results = attachAbsolutePaths(result.matches || [], searchScope);
 
   // Error branches — each one clears results and surfaces the failure in
   // its appropriate channel (inline vs toast).
@@ -968,44 +1008,61 @@ function focusSearch() {
 }
 
 async function onScopeChanged() {
-  // Worktree-switch mid-search cancellation: bumping `querySeq` here is
-  // the single source of truth. Any in-flight `runSearch` reads
-  // `getCurrentSeq()` at every await point and returns `{ aborted: true }`
-  // once it sees the mismatch. The caller in `executeSearch` then bails
-  // at the `if (result.aborted) return` check before mutating `state`.
-  // Phase 4 fix: we also clear `state.results` synchronously so the
-  // stale list never gets one extra render before the new search lands.
+  // Per-project query persistence. We:
+  //   1. Clear any pending debounced search (B1)
+  //   2. Set switchingScope = true to block input handlers (B1)
+  //   3. Save the current query under the OLD scope's key
+  //   4. Reset all session state synchronously
+  //   5. Await resolveScope()
+  //   6. Clear switchingScope
+  //   7. Load the NEW scope's saved query into the input
+  // The order matters: if any step fails or is interrupted, the worst
+  // case is a stale query in the input — never a cross-project leak.
   const oldScope = state.scope;
+  const oldQuery = els.search ? els.search.value : '';
+  clearTimeout(debounceTimer);
+  state.switchingScope = true;
   state.querySeq++;
-  // Cancel any in-flight loadPreview (M1): bump previewSeq so a stale
-  // loadPreview with the OLD filePath but NEW scope doesn't poison the
-  // new cache. The other resets clear the visible state and the
-  // workspace isolation clears the input/query so the new workspace
-  // starts fresh.
+  state.previewSeq++;
   state.results = [];
   state.expandedIndex = -1;
   state.previewCache.clear();
-  state.previewLoading = -1;       // C5
-  state.previewSeq++;              // M1
-  state.lastResult = null;         // m1
-  els.search.value = '';           // workspace isolation
-  state.currentQuery = '';         // workspace isolation
+  state.previewLoading = -1;
+  state.lastResult = null;
+
+  // Persist the OLD query before we touch the input.
+  saveQueryForScope(oldQuery, oldScope);
+
+  // Clear the input DOM and state. We do this AFTER save so the
+  // save can read the value before we wipe it.
+  if (els.search) els.search.value = '';
+  state.currentQuery = '';
+
   state.scope = await resolveScope();
   renderScopeIndicator();
+  state.switchingScope = false;
+
+  // Load the NEW scope's saved query (if any) into the input.
+  // Restored queries do NOT auto-search — the user must act.
+  const restored = loadQueryForScope(state.scope);
+  if (els.search) {
+    els.search.value = restored;
+    state.currentQuery = restored;
+  }
+
   if (state.rgReady) {
     olog('info', 'worktree.switched',
       'old=' + (oldScope || '<none>'),
-      'new=' + (state.scope || '<none>'));
+      'new=' + (state.scope || '<none>'),
+      'restored=' + (restored ? 'yes' : 'no'));
   }
-  // Toast now includes the resolved scope (C3). If scope is null,
-  // fall back to a generic "no project" message.
+
   if (state.scope) {
     toast(`Switched to ${state.scope}`, 'info');
   } else {
     toast('No project detected', 'warn');
   }
-  // Since currentQuery is now '', we never call scheduleSearch. Render
-  // the appropriate empty state.
+
   if (!state.scope) {
     renderStatus('No worktree detected. Open inside a git repo.', 'warn');
     renderEmpty('No worktree detected');
@@ -1028,6 +1085,16 @@ async function init() {
   state.rgPath = await resolveRgPath(muxy, RG_PATH_FALLBACK);
   state.scope = await resolveScope();
   renderScopeIndicator();
+  // Restore the last query this scope used (if any). The input is
+  // populated but `scheduleSearch()` is NOT called — the user must
+  // press Enter or type to fire a search. Auto-running on load would
+  // surprise users who closed the panel mid-search and expect a
+  // blank slate when they re-open it.
+  const savedQuery = loadQueryForScope(state.scope);
+  if (savedQuery && els.search) {
+    els.search.value = savedQuery;
+    state.currentQuery = savedQuery;
+  }
 
   // 3. Detect ripgrep (Phase 4). Runs after resolveRgPath so we can probe
   //    the actual binary, not just whatever's on $PATH. Cached on state so
