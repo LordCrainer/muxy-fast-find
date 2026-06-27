@@ -31,11 +31,16 @@ export function relativizePath(filePath, scope) {
  * Pure function — no I/O, no path normalization beyond the join.
  *
  * Rules (in order):
- *   - Falsy `filePath` → return as-is (preserves null/empty contract)
+ *   - Falsy / non-string `filePath` → return as-is (preserves null/empty contract)
  *   - Already absolute (starts with '/' on POSIX) → return as-is
  *   - No `scope` → return as-is (caller's problem; we can't help)
  *   - Otherwise → return `${scope}/${filePath}` (forward-slash join;
  *     rg output and Muxy paths are POSIX-style even on Windows)
+ *
+ * Trailing slashes on `scope` are stripped before joining, so callers
+ * don't have to pre-clean the worktree path. The root `/` is treated
+ * as a zero-length prefix (so `absolutizePath('etc/hosts', '/')` yields
+ * `/etc/hosts`, not `//etc/hosts`).
  *
  * Inverse of `relativizePath`: that one strips the scope prefix, this one
  * adds it back. They are paired for the "rg with cwd=scope" pattern.
@@ -45,11 +50,31 @@ export function relativizePath(filePath, scope) {
  * @returns {string}
  */
 export function absolutizePath(filePath, scope) {
-  if (!filePath) return filePath;
-  if (typeof filePath !== 'string') return filePath;
+  if (!filePath || typeof filePath !== 'string') return filePath;
   if (filePath.startsWith('/')) return filePath;
   if (!scope) return filePath;
-  return `${scope}/${filePath}`;
+  // Root '/' is special: it's the filesystem root, so we want a single
+  // '/' before the path (not '//'). For any other scope, strip ALL
+  // trailing slashes and prepend one to keep the join well-formed.
+  const normalizedScope = scope === '/' ? '' : scope.replace(/\/+$/, '');
+  return `${normalizedScope}/${filePath}`;
+}
+
+/**
+ * Augment an array of rg match records with an `absPath` field, computed
+ * by joining each match's relative `path` against `scope`. Pure: returns
+ * a new array, does not mutate inputs.
+ *
+ * @param {Array<Object>} matches — rg match records, each with `path`
+ * @param {string|null|undefined} scope — absolute scope path
+ * @returns {Array<Object>} — new array with `absPath` added to each match
+ */
+export function attachAbsolutePaths(matches, scope) {
+  if (!Array.isArray(matches)) return matches;
+  return matches.map(m => ({
+    ...m,
+    absPath: absolutizePath(m && m.path, scope),
+  }));
 }
 
 /**

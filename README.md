@@ -17,6 +17,7 @@ Full-text code search for Muxy, powered by [ripgrep](https://github.com/BurntSus
 - **No-ignore toggle** — adds `-uu` (no ignore files, no `.ignore`, no hidden filtering) for searches that must pierce `.gitignore` and friends.
 - **Configurable context lines** — 1, 3 (default), 5, or 10 lines around the match in the inline preview.
 - **Persistent settings** — case/literal/globs/hidden/no-ignore/context are stored in `localStorage` under `fast-find-settings-v1`.
+- **Per-project query memory** — each worktree remembers its last search; switch and come back without losing your place.
 - **Worktree switch detection** — listens to `worktree.switched` and `project.switched`; bumps the query sequence counter and clears stale results so a mid-search switch never lands a result from the old tree.
 - **ripgrep install prompt** — on first run (or after an upgrade), the panel detects a missing or out-of-date `rg` and surfaces a one-click copy of `brew install ripgrep` / `brew upgrade ripgrep`.
 - **200+ tests** — 8 suites covering argv construction, JSON parsing, install detection, search pipeline, inline preview, bundle, manifest, and scoring helpers.

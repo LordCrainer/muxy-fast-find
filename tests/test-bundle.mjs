@@ -242,6 +242,24 @@ test('JS bundle contains previewLoading = -1 reset', () => {
   );
 });
 
+// === v0.2.1 (Track A): absPath augmentation + query persistence ===========
+
+test('JS bundle contains absPath property name', () => {
+  // attachAbsolutePaths() augments each match with absPath. The property
+  // name must survive minification for the augmentation to work.
+  assert.ok(bundle.includes('absPath'), 'absPath must be in JS bundle');
+});
+
+test('JS bundle contains fast-find-query-v1: storage prefix', () => {
+  // query-store.js defines QUERY_STORAGE_PREFIX = 'fast-find-query-v1:'.
+  // This literal must survive minification because it's the actual key
+  // written to localStorage at runtime.
+  assert.ok(
+    bundle.includes('fast-find-query-v1:'),
+    'query storage prefix must be in JS bundle'
+  );
+});
+
 // === Summary ===============================================================
 
 console.log(`\n${passed} passed, ${failed} failed`);
