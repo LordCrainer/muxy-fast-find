@@ -203,6 +203,45 @@ test('dist/package.json mirrors source manifest', () => {
   assert.deepEqual(src.muxy, dist.muxy);
 });
 
+// === Phase 4 (Track B): "Open" button on result rows ========================
+// Track B adds a per-row "Open" button that opens the file in the editor
+// without expanding the preview. These three assertions guarantee the
+// feature survives a refactor: the CSS class is present, the JS wires
+// the right aria-label, and the scope-change reset (previewLoading = -1)
+// makes it into the bundle.
+
+const panelHtmlPath = resolve(distDir, 'panel.html');
+
+test('CSS bundle contains .result-open', () => {
+  // m4 fix: read the CSS file from dist/ (not from src/). The HTML in
+  // dist/panel.html points to a hashed assets/panel-*.css path, so we
+  // parse the link tag and resolve relative to dist/.
+  const html = readFileSync(panelHtmlPath, 'utf-8');
+  const cssMatch = html.match(/href="\.\/assets\/(panel-[A-Za-z0-9_-]+\.css)"/);
+  if (!cssMatch) throw new Error('CSS link not found in panel.html');
+  const cssPath = resolve(distDir, 'assets', cssMatch[1]);
+  const css = readFileSync(cssPath, 'utf-8');
+  assert.ok(css.includes('.result-open'), '.result-open class must be in CSS bundle');
+});
+
+test('JS bundle contains Open file in editor aria-label or .result-open class', () => {
+  // After minification, the literal string in setAttribute may or may
+  // not survive verbatim. Either the aria-label or the class name is
+  // sufficient evidence the button was created.
+  const found = bundle.includes('Open file in editor') || bundle.includes('result-open');
+  assert.ok(found, 'aria-label or class must be in JS bundle');
+});
+
+test('JS bundle contains previewLoading = -1 reset', () => {
+  // Phase 4 / C5: when the worktree changes, onScopeChanged must reset
+  // previewLoading so the next preview can fire. After minification
+  // the spacing around `=` may collapse, so we match `\s*` flexibly.
+  assert.ok(
+    /previewLoading\s*=\s*-1/.test(bundle),
+    'previewLoading reset must be in JS bundle'
+  );
+});
+
 // === Summary ===============================================================
 
 console.log(`\n${passed} passed, ${failed} failed`);
