@@ -296,8 +296,14 @@ function buildResultRow(match, index) {
   const locSpan = document.createElement('span');
   locSpan.className = 'result-loc';
   locSpan.textContent = `:${match.line}:${match.column}`;
+  const openBtn = document.createElement('button');
+  openBtn.className = 'result-open';
+  openBtn.type = 'button';
+  openBtn.setAttribute('aria-label', 'Open file in editor');
+  openBtn.textContent = '↗';
   header.appendChild(pathSpan);
   header.appendChild(locSpan);
+  header.appendChild(openBtn);
   li.appendChild(header);
 
   // Content: matched line with <mark> highlights
@@ -548,6 +554,28 @@ function onCopyButtonClick(e) {
   }
 }
 
+/**
+ * Click handler for the per-row "Open" button on the result header.
+ * Mirrors `onCopyButtonClick`: delegated to `els.results` so the listener
+ * stays alive across `replaceChildren` (every new result-list render
+ * destroys the old buttons). The button handles its own click — we
+ * stopPropagation so `onResultClick` (the row-toggle handler) does NOT
+ * see this click and collapse the preview. Keyboard activation on the
+ * button is handled by the browser's native button click (Enter/Space
+ * fire `click`), so no keydown handler is needed here.
+ */
+function onOpenButtonClick(e) {
+  const btn = e.target.closest('.result-open');
+  if (!btn) return;
+  e.stopPropagation();
+  const row = btn.closest('.result-row');
+  if (!row) return;
+  const index = Number(row.dataset.index);
+  if (Number.isNaN(index)) return;
+  const match = state.results[index];
+  if (match) openInEditor(match);
+}
+
 // === Inline preview fetch ==================================================
 
 async function loadPreview(index, match) {
@@ -634,12 +662,20 @@ function togglePreview(index) {
 function onResultClick(e) {
   const row = e.target.closest('.result-row');
   if (!row) return;
+  // The "Open" button handles its own click and stopPropagation's it,
+  // but as a belt-and-braces guard, bail here too. Without this, if
+  // stopPropagation is ever forgotten in onOpenButtonClick, the preview
+  // would toggle AND the editor would open.
+  if (e.target.closest('.result-open')) return;
   const index = parseInt(row.getAttribute('data-index'), 10);
   if (Number.isNaN(index)) return;
   togglePreview(index);
 }
 
 function onResultKeydown(e) {
+  // Buttons handle their own Enter/Space via the browser's native
+  // click synthesis; bail so we don't double-fire togglePreview.
+  if (e.target.closest('button')) return;
   if (e.key !== 'Enter') return;
   const row = e.target.closest('.result-row');
   if (!row) return;
@@ -941,10 +977,19 @@ async function onScopeChanged() {
   // stale list never gets one extra render before the new search lands.
   const oldScope = state.scope;
   state.querySeq++;
+  // Cancel any in-flight loadPreview (M1): bump previewSeq so a stale
+  // loadPreview with the OLD filePath but NEW scope doesn't poison the
+  // new cache. The other resets clear the visible state and the
+  // workspace isolation clears the input/query so the new workspace
+  // starts fresh.
   state.results = [];
-  toast('Worktree changed — results cleared', 'info');
   state.expandedIndex = -1;
   state.previewCache.clear();
+  state.previewLoading = -1;       // C5
+  state.previewSeq++;              // M1
+  state.lastResult = null;         // m1
+  els.search.value = '';           // workspace isolation
+  state.currentQuery = '';         // workspace isolation
   state.scope = await resolveScope();
   renderScopeIndicator();
   if (state.rgReady) {
@@ -952,10 +997,15 @@ async function onScopeChanged() {
       'old=' + (oldScope || '<none>'),
       'new=' + (state.scope || '<none>'));
   }
-  if (state.currentQuery) {
-    scheduleSearch();
-    return;
+  // Toast now includes the resolved scope (C3). If scope is null,
+  // fall back to a generic "no project" message.
+  if (state.scope) {
+    toast(`Switched to ${state.scope}`, 'info');
+  } else {
+    toast('No project detected', 'warn');
   }
+  // Since currentQuery is now '', we never call scheduleSearch. Render
+  // the appropriate empty state.
   if (!state.scope) {
     renderStatus('No worktree detected. Open inside a git repo.', 'warn');
     renderEmpty('No worktree detected');
@@ -1020,6 +1070,12 @@ async function init() {
   // `els.results` and is recreated on every `replaceChildren` — event
   // delegation is the only way to keep the listener alive.
   els.results.addEventListener('click', onCopyButtonClick);
+  // Delegated handler for the per-row "Open" button. Same rationale as
+  // onCopyButtonClick: the button is destroyed and re-created on every
+  // result-list render, so a delegated listener is the only way to
+  // survive `replaceChildren`. The handler stopPropagation's the click
+  // so onResultClick does not also toggle the preview.
+  els.results.addEventListener('click', onOpenButtonClick);
   els.results.addEventListener('keydown', onResultKeydown);
   document.addEventListener('click', onDocumentClick);
   document.addEventListener('keydown', onDocumentKeydown);

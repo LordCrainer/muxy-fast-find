@@ -659,3 +659,39 @@ html, body {
 ::-webkit-scrollbar-thumb:hover {
   background: #4a4a4c;
 }
+
+/* === "Open" button (hover-only) =========================================== */
+/* Lives on the right edge of the result-row header, visible only when the
+ * row is hovered or keyboard-focused. Click opens the file in the editor
+ * (delegated handler in main.js). Hidden by default so it doesn't compete
+ * with the matched-line content for visual attention. */
+
+.result-open {
+  opacity: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 6px;
+  margin-left: auto;
+  height: 18px;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+}
+
+.result-row:hover .result-open,
+.result-row:focus-within .result-open {
+  opacity: 1;
+}
+
+.result-open:hover {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.result-open:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
