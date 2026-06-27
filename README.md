@@ -87,13 +87,13 @@ To minimize prompts:
 ## Development
 
 ```bash
-npm install
-npm run dev       # Vite dev server on :5173
-npm run build     # Build to dist/ (panel.html + assets/, then copies package.json)
-npm test          # 204 tests across 8 suites, ~1s total
+bun install
+bun run dev       # Vite dev server on :5173
+bun run build     # Build to dist/ (panel.html + assets/, then copies package.json)
+bun test          # 268 tests across 10 suites, ~1s total
 ```
 
-The `pretest` hook runs `npm run build` automatically, so `dist/` is always fresh before the bundle assertions fire.
+The `pretest` hook runs `bun run build` automatically, so `dist/` is always fresh before the bundle assertions fire.
 
 Open `src/panel/panel.html` directly in a browser for a standalone preview — the panel fails closed when `window.muxy` is missing and shows a "Muxy host not available" status.
 

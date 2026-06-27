@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/copy-manifest.mjs",
+    "build": "vite build && bun scripts/copy-manifest.mjs",
     "build:surfaces": "vite build",
-    "pretest": "npm run build",
-    "test": "if [ -d tests ] && [ -n \"$(ls tests/test-*.mjs 2>/dev/null)\" ]; then (cd tests && for f in test-*.mjs; do node \"$f\" || exit 1; done); else echo 'No tests yet — Phase 5'; fi"
+    "pretest": "bun run build",
+    "test": "if [ -d tests ] && [ -n \"$(ls tests/test-*.mjs 2>/dev/null)\" ]; then (cd tests && for f in test-*.mjs; do bun \"$f\" || exit 1; done); else echo 'No tests yet — Phase 5'; fi"
   },
   "devDependencies": {
     "vite": "^7.3.5"

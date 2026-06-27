@@ -13,6 +13,9 @@ npm-debug.log*
 *.swp
 *.swo
 
+# Agent / tool metadata
+.opencode/
+
 # Test artifacts
 test-output/
 coverage/
