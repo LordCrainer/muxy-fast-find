@@ -11,6 +11,7 @@ import { MAX_COLUMNS } from '../src/panel/rg-args.js';
 import {
   relativizePath,
   absolutizePath,
+  attachAbsolutePaths,
   formatTime,
   formatCount,
   formatFileCount,
@@ -247,6 +248,95 @@ test('absolutizePath: non-string filePath is returned as-is', () => {
   // The function guards against bad input rather than coercing —
   // mirrors the defensive shape of isTruncated / formatTime.
   assert.equal(absolutizePath(123, '/repo'), 123);
+});
+
+test('absolutizePath: scope with trailing slash is normalized', () => {
+  // Hardening: the worktree path from the host API can come with a
+  // trailing slash (or multiple). We strip them so the join produces
+  // exactly one separator instead of two.
+  assert.equal(absolutizePath('src/x.ts', '/repo/'), '/repo/src/x.ts');
+});
+
+test('absolutizePath: scope with multiple trailing slashes is normalized', () => {
+  // Belt-and-braces: pathological inputs (double-slash, triple-slash)
+  // all collapse to a single join.
+  assert.equal(absolutizePath('src/x.ts', '/repo///'), '/repo/src/x.ts');
+});
+
+test('absolutizePath: root scope is preserved', () => {
+  // The root path '/' must NOT be stripped to '' — it has meaning on
+  // its own and is a valid scope.
+  assert.equal(absolutizePath('etc/hosts', '/'), '/etc/hosts');
+});
+
+test('absolutizePath: empty string scope returns path unchanged', () => {
+  // Falsy scope == "caller's problem, we can't help". Same contract
+  // as null/undefined.
+  assert.equal(absolutizePath('src/x.ts', ''), 'src/x.ts');
+});
+
+// === attachAbsolutePaths ====================================================
+// Wraps `absolutizePath` for a list of rg match records. Used by the UI
+// to add the `absPath` field that downstream code (open-in-editor) reads
+// without re-doing the join.
+
+test('attachAbsolutePaths: empty array stays empty', () => {
+  assert.deepEqual(attachAbsolutePaths([], '/repo'), []);
+});
+
+test('attachAbsolutePaths: null input is passed through', () => {
+  // Defensive: if a caller hands us a non-array (e.g. from a malformed
+  // search result), we don't crash — we pass it through unchanged.
+  assert.equal(attachAbsolutePaths(null, '/repo'), null);
+});
+
+test('attachAbsolutePaths: adds absPath to a single match', () => {
+  const input = [{ path: 'a.ts', line: 1 }];
+  const out = attachAbsolutePaths(input, '/repo');
+  assert.equal(out.length, 1);
+  assert.equal(out[0].path, 'a.ts');
+  assert.equal(out[0].line, 1);
+  assert.equal(out[0].absPath, '/repo/a.ts');
+});
+
+test('attachAbsolutePaths: already-absolute paths are unchanged', () => {
+  // absolutizePath returns already-absolute paths as-is, so absPath
+  // mirrors the input path.
+  const input = [{ path: '/abs/a.ts' }];
+  const out = attachAbsolutePaths(input, '/repo');
+  assert.equal(out[0].absPath, '/abs/a.ts');
+});
+
+test('attachAbsolutePaths: null scope leaves absPath == path', () => {
+  // No scope == "caller's problem". The match still gets an absPath
+  // field — equal to its own `path` — so downstream code can read
+  // `absPath` without a null check.
+  const input = [{ path: 'x.ts' }];
+  const out = attachAbsolutePaths(input, null);
+  assert.equal(out[0].absPath, 'x.ts');
+});
+
+test('attachAbsolutePaths: trailing slash on scope is normalized', () => {
+  // Same hardening as absolutizePath: callers don't need to pre-clean
+  // the worktree path.
+  const input = [{ path: 'src/x.ts' }];
+  const out = attachAbsolutePaths(input, '/repo/');
+  assert.equal(out[0].absPath, '/repo/src/x.ts');
+});
+
+test('attachAbsolutePaths: preserves order and all other fields', () => {
+  // The function must NOT filter, reorder, or drop fields. We pass
+  // in two records with multiple fields and verify the augmented
+  // arrays match exactly (deepEqual pins every field).
+  const input = [
+    { path: 'a.ts', line: 1, text: 'foo' },
+    { path: 'b.ts', line: 2, text: 'bar' },
+  ];
+  const expected = [
+    { path: 'a.ts', line: 1, text: 'foo', absPath: '/repo/a.ts' },
+    { path: 'b.ts', line: 2, text: 'bar', absPath: '/repo/b.ts' },
+  ];
+  assert.deepEqual(attachAbsolutePaths(input, '/repo'), expected);
 });
 
 // === Summary ===============================================================
