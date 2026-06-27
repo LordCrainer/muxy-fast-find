@@ -275,6 +275,14 @@ rg itself failed (e.g. invalid regex, permission denied mid-traversal). `runSear
 
 **Phase 5 hardening**: a `muxy.exec` that returns no result (or a result with neither `exitCode` nor `exit_code`) is now treated as `exec-failed` rather than silently succeeding with an empty match list. This catches plugin crashes that previously looked like "no matches".
 
+## Per-project query persistence
+
+Each scope (worktree root) keeps its own last-typed query in `localStorage`
+under `fast-find-query-v1:<scope>`. When you switch projects or worktrees,
+the new scope's query is restored into the input automatically (but the
+search does NOT auto-fire — you must press Enter or keep typing). Settings
+(case mode, globs, etc.) remain global across projects.
+
 ## Logging
 
 All log lines are prefixed with `[fastFind]` and routed to the matching `console.*` method (`console.debug` / `console.info` / `console.warn` / `console.error`). They are gated on `state.rgReady` — when ripgrep is missing, the log channel is silent (the install prompt is the only signal).
