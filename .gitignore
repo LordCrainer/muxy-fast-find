@@ -1,0 +1,19 @@
+# Build output
+dist/
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artifacts
+test-output/
+coverage/
+codedb.snapshot

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="./icon.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+  <title>Find in Files</title>
+</head>
+<body>
+  <main class="wrap">
+    <header class="header">
+      <div class="title">
+        <span class="icon" aria-hidden="true">🔍</span>
+        <span>Find in Files</span>
+      </div>
+      <button id="settings-toggle" class="icon-button" type="button" aria-label="Settings">⚙</button>
+    </header>
+
+    <div class="input-row">
+      <input id="search" type="search" placeholder="Search…" autocomplete="off" spellcheck="false" />
+      <button id="case-toggle" class="toggle" type="button" aria-label="Match case" title="Match case (Aa)" aria-pressed="false">Aa</button>
+      <button id="literal-toggle" class="toggle" type="button" aria-label="Literal mode" title="Literal mode (toggle regex)" aria-pressed="false">.*</button>
+    </div>
+
+    <div id="scope-indicator" class="scope-indicator" aria-live="polite" title="Click to copy full path">
+      <span class="scope-label">in</span>
+      <span id="scope-path" class="scope-path">—</span>
+    </div>
+
+    <div id="settings-popover" class="settings-popover hidden" role="dialog" aria-label="Search settings">
+      <label class="setting">
+        <span class="setting-label">Include globs</span>
+        <input id="setting-globs" type="text" placeholder="*.ts,*.tsx" />
+      </label>
+      <label class="setting setting-toggle">
+        <input id="setting-hidden" type="checkbox" />
+        <span class="setting-label">Search hidden files</span>
+      </label>
+      <label class="setting setting-toggle">
+        <input id="setting-no-ignore" type="checkbox" />
+        <span class="setting-label">Search ignored files (-uu)</span>
+      </label>
+      <label class="setting">
+        <span class="setting-label">Context lines</span>
+        <select id="setting-context">
+          <option value="1">1</option>
+          <option value="3" selected>3</option>
+          <option value="5">5</option>
+          <option value="10">10</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="status" class="status" aria-live="polite">Type to search</div>
+
+    <ul id="results" class="results" role="listbox" aria-label="Search results"></ul>
+  </main>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
